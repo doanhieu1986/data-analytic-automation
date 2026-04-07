@@ -1,62 +1,185 @@
-# Presentation Project — Claude Code Context
+# Data Analytics Automation — CLAUDE.md
+# Context file cho Claude Code. Đọc file này trước khi làm bất kỳ task nào.
 
-## Mục đích project
-Tạo HTML presentations theo yêu cầu. Mỗi presentation là 1 file HTML duy nhất, tự chứa (inline CSS + JS), dark theme mặc định. Hỗ trợ 2 định dạng: **slide** (Reveal.js) và **interactive** (HTML tương tác như website).
+## 1. Tổng quan dự án
 
-## Quy trình làm việc (LUÔN theo thứ tự này)
+Đây là hệ thống automation phân tích dữ liệu cho **team Data Analytics** của một công ty chứng khoán Việt Nam.
 
-1. **Đọc config** → `presentation.config.yaml`
-2. **Đọc skill** → `SKILL.md`
-3. **Đọc theme** → `dark.css`
-4. **Nếu `format: slide`** → đọc base template `dark-base.html`
-5. **Generate** → output vào `output/<topic-slug>.html`
+**Mục tiêu chính:**
+- Tự động hóa EDA (Exploratory Data Analysis) trên các dataset mới
+- Scan data quality và báo cáo vấn đề dữ liệu
+- Xử lý và transform dữ liệu từ nhiều nguồn
+- Generate SQL từ natural language query (Text-to-SQL)
+- Tự động rút ra insight từ dữ liệu thị trường và nội bộ
 
-## Khi nhận yêu cầu tạo presentation mới
+**Tech stack:**
+- Orchestration: Antigravity (internal platform) + n8n
+- AI: Claude Code (agentic), Claude API (programmatic)
+- Database: PostgreSQL / SQL Server (OLTP), BigQuery / Redshift / Snowflake (DWH)
+- File sources: CSV, Excel, Parquet (từ sàn, đối tác)
+- Market data: HOSE, HNX, Bloomberg API
 
-Người dùng sẽ cung cấp (tối thiểu): **chủ đề** (topic).  
-Các tham số còn lại lấy default từ `presentation.config.yaml`.
+---
 
-**Bước đầu tiên — kiểm tra content mode:**
-1. Tìm file `content/<topic-slug>.md` hoặc `content/<topic-slug>.txt`
-2. Nếu có → **MODE A**: dùng file làm nguồn nội dung
-3. Nếu không có → **MODE B**: tự generate từ topic + config
+## 2. Cấu trúc thư mục
 
-**Quy tắc số slide:**
-- `slide_count` có giá trị số → generate đúng số slide đó
-- `slide_count` để trống (`""`) → tự quyết dựa theo độ phức tạp và lượng nội dung
+```
+data-analytic-automation/
+├── CLAUDE.md                    ← File này (đọc trước tiên)
+├── context/
+│   ├── business-rules.md        ← Nghiệp vụ chứng khoán, định nghĩa KPI
+│   ├── data-dictionary.md       ← Từ điển dữ liệu: bảng, cột, ý nghĩa
+│   ├── sql-conventions.md       ← Quy ước viết SQL của team
+│   └── schemas/
+│       ├── postgres/            ← DDL hoặc schema mô tả OLTP
+│       ├── warehouse/           ← Schema DWH (BigQuery/Redshift)
+│       └── market-data/         ← Cấu trúc dữ liệu thị trường
+├── .claude/
+│   └── commands/                ← Custom slash commands
+│       ├── eda.md               ← /eda — chạy EDA trên dataset
+│       ├── dq.md                ← /dq — data quality scan
+│       ├── sql.md               ← /sql — Text-to-SQL
+│       └── insight.md           ← /insight — generate insight
+├── scripts/
+│   ├── eda_runner.py            ← Script EDA tự động
+│   ├── dq_scanner.py            ← Script data quality
+│   ├── sql_generator.py         ← Text-to-SQL với context
+│   └── insight_engine.py        ← Insight generation
+├── n8n/
+│   └── workflows/               ← n8n workflow JSON exports
+└── outputs/                     ← Kết quả được generate ra
+```
 
-Nếu người dùng truyền thêm tham số, override config tương ứng.
+---
 
-**Ví dụ prompt:**
-- `"Tạo presentation về AI trong giáo dục"` → dùng toàn bộ default
-- `"Tạo presentation về blockchain, 12 slides, audience: C-level"` → override slide_count và audience
-- `"Tạo presentation về DevOps, format interactive"` → override format
+## 3. Nguyên tắc làm việc
 
-## Khi nhận yêu cầu chỉnh sửa visual / template
+### Khi làm việc với data
+- **LUÔN** đọc `context/data-dictionary.md` trước khi viết SQL hoặc query
+- **LUÔN** đọc `context/business-rules.md` khi diễn giải số liệu
+- Không assume tên cột — kiểm tra schema thực tế trong `context/schemas/`
+- Với dữ liệu thị trường: timezone là **GMT+7 (Việt Nam)**, ngày giao dịch theo lịch HOSE
 
-- Chỉnh sửa `dark.css` nếu là màu sắc / font / spacing
-- Chỉnh sửa `dark-base.html` nếu là layout / structure (chỉ ảnh hưởng format `slide`)
-- **Không được** hardcode style vào file output — luôn dùng CSS variables từ theme
+### Khi generate SQL
+- Tuân thủ `context/sql-conventions.md`
+- Default database là **[ĐIỀN TÊN DATABASE]**
+- Dùng CTEs thay vì subquery lồng nhau
+- Luôn có comment giải thích logic phức tạp
+- Kiểm tra xem table tồn tại trong schema trước khi dùng
 
-## Cấu trúc file output
+### Khi viết Python
+- Python version: **3.11+**
+- Package quản lý bằng: **[pip / poetry / uv — điền vào]**
+- Logging dùng `structlog`, không dùng `print()`
+- Kết quả EDA/DQ export ra `outputs/` với timestamp
 
-- Tên file: `output/<topic-slug>_<YYYYMMDD>.html`
-- Self-contained: tất cả CSS inline trong `<style>`, JS dùng CDN hoặc inline
+### Output format
+- Báo cáo EDA: Markdown + HTML (dùng ydata-profiling hoặc pandas)
+- Data quality report: JSON + Markdown summary
+- SQL generated: file `.sql` + explain plan
+- Insight: Markdown với section Headers rõ ràng
 
-**Hai định dạng output (`output.format`):**
+---
 
-- `"slide"` → Reveal.js slideshow (mặc định). Dùng framework + theme từ config, đọc template `templates/dark-base.html`
-- `"interactive"` → HTML tùy biến, tương tác như website: có thể có tabs, sections, sidebar, accordion, v.v. Không dùng Reveal.js. Tự thiết kế layout phù hợp với nội dung, ưu tiên trải nghiệm đọc/khám phá thay vì trình chiếu. CSS và JS viết inline trong file.
+## 4. Domain knowledge — Chứng khoán Việt Nam
 
-## Quy tắc nội dung slide
+### Thời gian giao dịch
+- HOSE: 09:00–11:30 và 13:00–14:45 (ATO/ATC riêng)
+- HNX: 09:00–11:30 và 13:00–14:45
+- Phiên ATO: 09:00–09:15 | Phiên ATC: 14:30–14:45
 
-- Mỗi slide: tối đa **5–6 bullet points** hoặc **1 visual chính**
-- Không nhồi text — ưu tiên ngắn gọn, súc tích
-- Slide cuối: luôn có "Q&A / Thank you" hoặc tương đương
-- Ngôn ngữ: theo `config.language` (default: tiếng Việt)
+### Các bảng dữ liệu cốt lõi (điền vào theo thực tế)
+| Tên bảng | Mô tả | Database |
+|---|---|---|
+| `tick_data` | Dữ liệu giá từng tick | [ĐIỀN] |
+| `ohlcv_daily` | OHLCV ngày | [ĐIỀN] |
+| `account_portfolio` | Danh mục khách hàng | [ĐIỀN] |
+| `transactions` | Lịch sử giao dịch | [ĐIỀN] |
+| `customer_info` | Thông tin KH | [ĐIỀN] |
 
-## Ghi chú quan trọng
+### KPI quan trọng (điền theo định nghĩa nội bộ)
+- **NAV**: Net Asset Value — [công thức]
+- **P&L**: Realized/Unrealized — [công thức]
+- **Margin ratio**: [công thức]
+- **Trading volume**: [định nghĩa khớp lệnh/đặt lệnh]
 
-- Sau khi generate xong, báo lại: tên file, số slide, theme dùng
-- Nếu config có gì mâu thuẫn với yêu cầu, hỏi lại trước khi generate
-- Khi người dùng nói "update template" → sửa file template/theme, KHÔNG tạo file mới
+---
+
+## 5. Kết nối dữ liệu
+
+### PostgreSQL / SQL Server
+```python
+# Dùng biến môi trường, không hardcode
+DB_HOST = os.environ["DB_HOST"]
+DB_PORT = os.environ["DB_PORT"]
+DB_NAME = os.environ["DB_NAME"]
+DB_USER = os.environ["DB_USER"]
+DB_PASS = os.environ["DB_PASS"]
+```
+
+### BigQuery / DWH
+```python
+PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+DATASET = os.environ["BQ_DATASET"]
+```
+
+### Market Data API
+```python
+MARKET_API_KEY = os.environ["MARKET_API_KEY"]
+MARKET_API_BASE = os.environ["MARKET_API_BASE_URL"]
+```
+
+**Credentials file:** `.env` (không commit lên git) — xem `.env.example`
+
+---
+
+## 6. Antigravity Integration
+
+> **TODO:** Điền thông tin về Antigravity platform
+>
+> - Antigravity là gì? (scheduler? data platform? pipeline tool?)
+> - Cách trigger job từ Antigravity
+> - Cách đọc/ghi data qua Antigravity
+> - API endpoints hoặc SDK usage
+
+---
+
+## 7. n8n Integration
+
+n8n dùng để orchestrate các tác vụ automation và trigger Claude Code/scripts:
+
+- Webhook trigger → gọi script Python
+- Schedule trigger → chạy EDA/DQ định kỳ
+- HTTP Request node → gọi Claude API trực tiếp
+
+Xem workflows JSON trong `n8n/workflows/`.
+
+**n8n base URL:** `[ĐIỀN URL n8n instance]`
+
+---
+
+## 8. Files quan trọng cần đọc thêm
+
+Khi nhận task, đọc theo thứ tự:
+1. File này (`CLAUDE.md`) — luôn đọc trước
+2. `context/data-dictionary.md` — khi làm việc với data
+3. `context/business-rules.md` — khi diễn giải/phân tích
+4. `context/schemas/[relevant]` — khi viết SQL
+5. `context/sql-conventions.md` — khi generate SQL
+
+---
+
+## 9. Câu hỏi thường gặp khi Claude Code bị confused
+
+**Q: Table/column tên gì?**
+→ Đọc `context/data-dictionary.md` và `context/schemas/`
+
+**Q: Số liệu này tính thế nào?**
+→ Đọc `context/business-rules.md`
+
+**Q: Output lưu ở đâu?**
+→ Thư mục `outputs/` với format `outputs/YYYY-MM-DD_task-name/`
+
+**Q: Khi nào dùng DWH, khi nào dùng PostgreSQL?**
+→ OLTP (realtime, transactional): PostgreSQL/SQL Server
+→ Analytics, historical, aggregation: DWH (BigQuery/Redshift)
