@@ -29,25 +29,21 @@ data-analytic-automation/
 ├── context/
 │   ├── business-rules.md        ← Nghiệp vụ chứng khoán, định nghĩa KPI
 │   ├── data-dictionary.md       ← Từ điển dữ liệu: bảng, cột, ý nghĩa
-│   ├── sql-conventions.md       ← Quy ước viết SQL của team
-│   └── schemas/
-│       ├── postgres/            ← DDL hoặc schema mô tả OLTP
-│       ├── warehouse/           ← Schema DWH (BigQuery/Redshift)
-│       └── market-data/         ← Cấu trúc dữ liệu thị trường
-├── .claude/
-│   └── commands/                ← Custom slash commands
-│       ├── eda.md               ← /eda — chạy EDA trên dataset
-│       ├── dq.md                ← /dq — data quality scan
-│       ├── sql.md               ← /sql — Text-to-SQL
-│       └── insight.md           ← /insight — generate insight
+│   ├── sql-conventions.md       ← Quy ước viết SQL + bảng so sánh platform
+│   └── flows/                   ← Logic nghiệp vụ từng luồng (đọc khi generate code)
+│       └── oa_logic.md          ← Luồng mở tài khoản: 7 bước, drop-off, lỗi
 ├── scripts/
 │   ├── eda_runner.py            ← Script EDA tự động
 │   ├── dq_scanner.py            ← Script data quality
-│   ├── sql_generator.py         ← Text-to-SQL với context
-│   └── insight_engine.py        ← Insight generation
+│   └── sql_generator.py         ← Text-to-SQL với context
 ├── n8n/
 │   └── workflows/               ← n8n workflow JSON exports
-└── outputs/                     ← Kết quả được generate ra
+└── outputs/                     ← Kết quả SQL queries và báo cáo được generate ra
+    └── YYYY-MM-DD_<task>/       ← Mỗi task một thư mục có timestamp
+        ├── data_flow.md         ← Mô tả luồng xử lý dữ liệu + Mermaid diagram (luôn tạo kèm)
+        ├── trino/               ← SQL cho Trino engine
+        ├── postgres/            ← SQL cho PostgreSQL
+        └── oracle/              ← SQL cho Oracle
 ```
 
 ---
@@ -62,7 +58,10 @@ data-analytic-automation/
 
 ### Khi generate SQL
 - Tuân thủ `context/sql-conventions.md`
-- Default database là **[ĐIỀN TÊN DATABASE]**
+- **Luôn hỏi hoặc xác nhận platform** trước khi viết: Trino / PostgreSQL / Oracle / BigQuery
+- Tạo file trong `outputs/<YYYY-MM-DD>_<task>/<platform>/`
+- Nếu cần nhiều platform: tạo subfolder riêng cho từng cái, không viết chung 1 file
+- **Luôn tạo kèm `data_flow.md`** trong thư mục task: mô tả từng bước xử lý (CTE), ánh xạ về logic nghiệp vụ, kèm Mermaid diagram
 - Dùng CTEs thay vì subquery lồng nhau
 - Luôn có comment giải thích logic phức tạp
 - Kiểm tra xem table tồn tại trong schema trước khi dùng
@@ -164,7 +163,7 @@ Khi nhận task, đọc theo thứ tự:
 1. File này (`CLAUDE.md`) — luôn đọc trước
 2. `context/data-dictionary.md` — khi làm việc với data
 3. `context/business-rules.md` — khi diễn giải/phân tích
-4. `context/schemas/[relevant]` — khi viết SQL
+4. `context/flows/<tên_luồng>_logic.md` — khi task đề cập đến một luồng nghiệp vụ cụ thể
 5. `context/sql-conventions.md` — khi generate SQL
 
 ---

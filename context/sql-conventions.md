@@ -172,22 +172,62 @@ WHERE trade_date AT TIME ZONE 'Asia/Ho_Chi_Minh' >= '2024-01-01'
 
 ---
 
-## 8. Database-specific notes
+## 8. Platform syntax — Bảng so sánh
 
-### PostgreSQL / SQL Server
-- Dùng `ILIKE` thay `LIKE` để case-insensitive search
-- Window functions: `OVER (PARTITION BY ... ORDER BY ...)`
+> Khi generate SQL, **luôn hỏi hoặc chỉ định platform** trước khi viết.
+> Output lưu vào `outputs/<task>/<platform>/` để phân biệt rõ.
 
-### BigQuery
-- Tên đầy đủ: `project_id.dataset.table_name`
-- Partition filter bắt buộc với bảng lớn: `WHERE _PARTITIONDATE = DATE('2024-03-15')`
+| Tính năng | Trino | PostgreSQL | Oracle | BigQuery |
+|-----------|-------|------------|--------|----------|
+| **String match (case-insensitive)** | `LIKE` (case-sensitive) | `ILIKE` | `UPPER(col) LIKE UPPER(...)` | `LIKE` (case-sensitive) |
+| **Date literal** | `DATE '2024-01-01'` | `'2024-01-01'::date` | `DATE '2024-01-01'` hoặc `TO_DATE('2024-01-01','YYYY-MM-DD')` | `DATE '2024-01-01'` |
+| **Ngày hiện tại** | `CURRENT_DATE` | `CURRENT_DATE` | `TRUNC(SYSDATE)` | `CURRENT_DATE` |
+| **Inline value list** | `SELECT v UNION ALL SELECT v` | `SELECT * FROM (VALUES (1,'a'),(2,'b')) t(col1,col2)` | `SELECT v FROM DUAL UNION ALL SELECT v FROM DUAL` | `SELECT v UNION ALL SELECT v` |
+| **Giới hạn rows** | `LIMIT n` | `LIMIT n` | `FETCH FIRST n ROWS ONLY` | `LIMIT n` |
+| **Null-safe coalesce** | `COALESCE` | `COALESCE` | `COALESCE` hoặc `NVL` | `COALESCE` hoặc `IFNULL` |
+| **Tên bảng đầy đủ** | `catalog.schema.table` | `schema.table` | `schema.table` | `project.dataset.table` |
+| **CTE** | `WITH ... AS (...)` | `WITH ... AS (...)` | `WITH ... AS (...)` | `WITH ... AS (...)` |
+| **Window functions** | Hỗ trợ đầy đủ | Hỗ trợ đầy đủ | Hỗ trợ đầy đủ (10g+) | Hỗ trợ đầy đủ |
+| **Partition pruning** | `WHERE data_date = DATE '...'` | `WHERE data_date = '...'::date` | `WHERE data_date = DATE '...'` | `WHERE _PARTITIONDATE = '...'` |
+| **String concat** | `\|\|` hoặc `concat()` | `\|\|` hoặc `concat()` | `\|\|` hoặc `concat()` | `\|\|` hoặc `CONCAT()` |
+
+### Quy tắc output theo platform
+
+```
+outputs/<YYYY-MM-DD>_<task>/
+├── trino/
+│   ├── funnel_dropoff.sql
+│   └── error_detail.sql
+├── postgres/
+│   ├── funnel_dropoff.sql
+│   └── error_detail.sql
+└── oracle/
+    ├── funnel_dropoff.sql
+    └── error_detail.sql
+```
+
+### Lưu ý quan trọng theo platform
+
+**Trino**
+- Default catalog/schema cần chỉ định: `hive.bronze.table` hoặc dùng `USE catalog.schema`
+- Không hỗ trợ `SELECT` không có `FROM` (khác Oracle/SQL Server)
+
+**PostgreSQL**
+- Dùng `ILIKE` cho string matching để tránh lỗi case
+- Cast date: `'2024-01-01'::date` hoặc `CAST('2024-01-01' AS DATE)`
+- `VALUES` clause gọn hơn `UNION ALL` cho inline lookup table
+
+**Oracle**
+- `SELECT` bắt buộc có `FROM` → inline values dùng `FROM DUAL`
+- `LIMIT` không tồn tại → thay bằng `FETCH FIRST n ROWS ONLY` (12c+) hoặc `WHERE ROWNUM <= n`
+- Unicode: đảm bảo DB charset là `AL32UTF8` nếu dùng tiếng Việt có dấu
+- Tránh dùng reserved words làm alias (e.g. `key`, `date`, `comment`)
+
+**BigQuery**
+- Tên đầy đủ: `` `project_id.dataset.table` `` (backtick nếu có ký tự đặc biệt)
+- Partition filter bắt buộc với bảng lớn: `WHERE _PARTITIONDATE = '2024-03-15'`
 - Dùng `DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)` thay `CURRENT_DATE - 30`
-- Array/Struct: UNNEST khi cần flatten
-
-### Shared conventions
-- Không dùng `SELECT *` trong production
-- Limit kết quả khi explore: `LIMIT 1000`
-- Explain plan trước khi chạy query nặng
+- Array/Struct: `UNNEST` khi cần flatten
 
 ---
 
