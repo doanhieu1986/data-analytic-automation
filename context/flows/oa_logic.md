@@ -7,7 +7,7 @@
 
 ---
 
-## 1. Tổng quan luồng
+## 1. Tổng quan luồng.
 
 - Khách hàng mở tài khoản chứng khoán qua app SmartOne (VPS) trải qua **7 bước tuần tự**.
 Mỗi hành động của KH trong app phát sinh một **event** được ghi vào bảng `cpm_event_raw`.
